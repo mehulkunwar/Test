@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Case Management - CXInfinity</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <script>
+
+      window.onload = function () {
+        console.log("loaded");
+        setTimeout(function () {
+          autoLogin();
+        }, 1000);
+      };
+
+      function autoLogin() {
+        let eventName = "successfullogin";
+        let loginId = "pberardis";
+        let data = new Object();
+        data["agentId"] = loginId;
+        data["agentStatus"] = loginId;
+        data["extension"] = loginId;
+        sendEvent(eventName, data);
+        console.log("event sent");
+      }
+
+      function sendEvent(eventName, data) {
+        try {
+          var obj = new Object();
+          obj["eventName"] = eventName;
+          obj["data"] = data;
+          obj["eventType"] = "EXTERNAL_EVENT_TO_CM";
+          var win = document.getElementById("cmFrame").contentWindow;
+          win.postMessage(obj, "*");
+        } catch (err) {
+          console.log("Error Posting Message : " + err.message);
+        }
+      }
+
+      var receiveCTIMessage = function (event) {
+        try {
+          handleCTIMessages(event);
+        } catch (err) {
+          console.error("receiveCTIMessage:", err.message);
+        }
+      };
+      var addCTIEvent = window.attachEvent || window.addEventListener;
+      var event = window.attachEvent ? "onmessage" : "message";
+      var callEventCheck = true;
+
+      addCTIEvent(event, receiveCTIMessage);
+
+      function handleCTIMessages(event) {
+        console.log("Event received for HTML:", event.data);
+
+        /*if (event.data.method == "connect") {
+          console.log("Event received on HTML:", event.data);
+          autoLogin();
+        } else*/
+        // To Load Case on Email
+        if (event.data.eventName == "CXINFINITY_EMAIL_SELECTED") {
+          console.log("Inside CXINFINITY_EMAIL_SELECTED",event.data);
+          let name = event.data.data.from.name;
+          let phone = "";
+          let email = event.data.data.from.email;
+
+          var result = {
+            from: {
+              email: email,
+              name: name,
+            },
+            customerName: name,
+            customerPhoneNumber: phone,
+            customerEmail: email,
+            dynamicFields: {
+              Email: email,
+              "Phone Number": phone,
+              Name: name,
+            },
+          };
+          console.error("LOAD CASE FOR EMAIL", result);
+          sendEvent("NDS_LOAD_TICKET_EMAIL", result);
+        }
+        // To Create Case on Email
+        else if (event.data.eventName === "CXINFINITY_EMAIL_RESOLVED") {
+          console.log("Inside CXINFINITY_EMAIL_RESOLVED", event.data);
+          interactionType = "EMAIL";
+          let startDateTime = new Date();
+          interactionSubType =
+            "Email received at " + startDateTime.toLocaleString();
+          let name = event.data.data.from.name;
+          let phone = "";
+          let email = event.data.data.from.email;
+          obj = {
+            id: event.data.data.id,
+            customerFirstName: name,
+            customerLastName: name,
+            customerEmail: email,
+            customerPhoneNumber: phone,
+            from: {
+              name: name,
+              email: email,
+            },
+            subject: interactionSubType,
+            participants: [
+              {
+                message: "Email", //email body
+              },
+            ],
+            type: "EMAIL",
+          };
+          console.log("CREATE CASE FOR EMAIL", obj);
+          sendEvent("NDS_CREATE_TICKET_EMAIL", obj);
+        }
+        // To Load Case on Chat
+        else if (event.data.eventName == "CXINFINITY_CHAT_ACCEPTED") {
+          console.log("Inside CXINFINITY_CHAT_ACCEPTED",event.data);
+          let name = event.data.data.customerName;
+          let phone = "";
+          let email = event.data.data.senderId;
+
+          var result = {
+            from: {
+              email: email,
+              name: name,
+            },
+            customerName: name,
+            customerPhoneNumber: phone,
+            customerEmail: email,
+            dynamicFields: {
+              Email: email,
+              "Phone Number": phone,
+              Name: name,
+            },
+          };
+          //console.error("CM DATA TO SEARCH", result);
+          // sendEvent("NDS_DATA_LOAD", result);
+          sendEvent("NDS_LOAD_TICKET_EMAIL", result);
+          console.error("CM DATA TO SEARCH FOR CHAT", result);
+          // try {
+          //   var objTo = {};
+          //   objTo["eventName"] = "NDS_CREATE_TICKET";
+          //   objTo["data"] = obj;
+          //   objTo["eventType"] = "EXTERNAL_EVENT_TO_CM";
+          //   var win = document.getElementById("cmFrame").contentWindow;
+          //   console.error(win, objTo);
+          //   win.postMessage(objTo, "*");
+          // } catch (err) {
+          //   console.log("Error Posting Message : " + err.message);
+          // }
+        } 
+        // To Create Case on Chat
+        else if (event.data.eventName == "CXINFINITY_CHAT_ENDED") {
+          console.log("Inside CXINFINITY_CHAT_ENDED",event.data);
+          interactionType = "CHAT";
+          let startDateTime = new Date();
+          interactionSubType =
+            "Chat received at " + startDateTime.toLocaleString();
+          console.error("Inside ChaT");
+          let cxi_chat_email = event.data.data.customerEmail;
+          let cxi_chat_phone = "";
+          let cxi_chat_name =
+            event.data.data.customerFirstName +
+            " " +
+            event.data.data.customerLastName;
+        
+          obj = {
+            id: event.data.data.interactionId, //Caller Number
+            
+            interactionSubType: interactionSubType, //subject
+            customerFirstName: cxi_chat_name,
+            customerLastName: cxi_chat_name,
+            customerEmail: cxi_chat_email,
+            customerPhoneNumber: cxi_chat_phone,
+            chatTranscript: [
+              {
+                chatMessage: "Chat", //message
+              },
+            ],
+          };
+          console.log("DATA FOR CM FROM CHAT",obj);
+          sendEvent("NDS_CREATE_TICKET_CHAT", obj);
+        }
+        // CallStartNotification 
+        else if (event.data.eventName == "CallStartNotification") {
+        }
+        // CallEndNotification
+        else if (event.data.eventName == "CallEndNotification") {
+          
+      }
+      }
+    </script>
+  </body>
+  <!-- <button onClick="autoLogin()">AutoLogin</button> -->
+  <div id="mydiv" class="iframeContainerStyle" style="height: 99vh">
+    <iframe
+      src="https://uat.novelvox.net/cmui/?isInternal=true"
+      id="cmFrame"
+      frameborder="0"
+      width="100%"
+      height="100%"
+      allow="camera *;microphone *"
+    >
+    </iframe>
+  </div>
+</html>

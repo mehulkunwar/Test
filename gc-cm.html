@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Case Management - Genesys Cloud</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- <script src="scripts/cti.bundle.js"></script> -->
+    <!-- <script src="scripts/require.js"></script> -->
+    <!-- <script src="scripts/requirejs.org_docs_release_2.3.6_comments_require.js"></script> -->
+    <!-- <script src="scripts/webrtc-init-sdk.js"></script> -->
+    <script src="scripts/jquery.js"></script>
+    <script src="scripts/NAD_AIC.js"></script>
+    <!-- <script src="scripts/NADCTIPlugin.js"></script> -->
+    <script src="scripts/platformClient.js"></script>
+    <script src="scripts/genesys-cloud-webrtc-sdk.bundle.min.js"></script>
+    <script src="scripts/purecloud-platform-client-v2.js"></script>
+    <script src="scripts/purecloud-webrtc-sdk.js"></script>
+    <script src="scripts/webrtc-sdk.js"></script>
+    <script src="scripts/xml2json.min.js"></script>
+    <script
+      data-main="scripts/NADCTIPlugin.js"
+      src="scripts/require.js"
+    ></script>
+    <!-- <script data-main="scripts/genesys-cloud-webrtc-sdk.bundle.min.js" src="scripts/require.js"></script> -->
+    <!-- <script data-main="scripts/platformClient.js" src="scripts/require.js"></script> -->
+    <!-- <script data-main="scripts/purecloud-platform-client-v2.js" src="scripts/require.js"></script> -->
+    <!-- <script data-main="scripts/purecloud-webrtc-sdk.js" src="scripts/require.js"></script> -->
+    <!-- <script data-main="scripts/webrtc-sdk.js" src="scripts/require.js"></script> -->
+    <!-- <script data-main="scripts/xml2json.min.js" src="scripts/require.js"></script> -->
+    <!-- <script src="https://sdk-cdn.mypurecloud.com/client-apps/1.0.0/purecloud-client-app-sdk-ed1f20f5244ee2bb9cc242f669369639.min.js"></script> -->
+    <script>
+      var qs;
+      qs =
+        "?serverDetails=ew0KICAiQ2xpZW50X0lkIjoiNDMwZDVmMDktZmY4MC00YmI2LThkZGUtYzFmYzk4YjdiYjM5IiwNCiAgIlJlZGlyZWN0X1VybCI6ICJodHRwczovL25kcy5ub3ZlbHZveC5uZXQvY20vZ2MvY20uaHRtbCIsCiAgIkVudmlyb25tZW50IjogInVzdzIucHVyZS5jbG91ZCIKfQ";
+
+      //NAD_AIC.connect();
+
+      window.onload = function () {
+        try {
+          var obj = new Object();
+          obj["eventName"] = "ServerConfig";
+          obj["value"] = qs;
+          window.postMessage(obj, "*");
+        } catch (err) {
+          console.log("Error Posting Message : " + err.message);
+        }
+        console.log("event sent");
+      };
+
+      function sendEvent(eventName, data) {
+        try {
+          var obj = new Object();
+          obj["eventName"] = eventName;
+          obj["data"] = data;
+          obj["eventType"] = "EXTERNAL_EVENT_TO_CM";
+          var win = document.getElementById("cmFrame").contentWindow;
+          // win.postMessage(obj, "*");
+		  console.error("------> Send event to CM:",obj,win);
+          win.postMessage(obj, "*");
+		  win.parent.postMessage(obj, "*");
+        } catch (err) {
+          console.log("Error Posting Message : " + err.message);
+        }
+      }
+
+      var receiveCTIMessage = function (event) {
+        try {
+          handleCTIMessages(event);
+        } catch (err) {
+          console.error("receiveCTIMessage:", err.message);
+        }
+      };
+      var addCTIEvent = window.attachEvent || window.addEventListener;
+      var event = window.attachEvent ? "onmessage" : "message";
+      var callEventCheck = true;
+
+      var siteId = "15";
+      var groupId = "25";
+      var subGroupId = "46";
+	  var genesysData = {};
+      addCTIEvent(event, receiveCTIMessage);
+
+      function handleCTIMessages(event) {
+
+        if (event.data.eventName == "agentDetails") {
+          console.log("Event received on HTML:", event.data);
+          let username = event.data.data.username;
+          console.log("Username : " + username);
+          let res = "";
+          let index = username.indexOf("@");
+          if (index >= 0) {
+            res = username.substring(0, index);
+          }
+          res = res.replace(/[^a-z0-9]/gi, "");
+          console.log("login id : " + res);
+
+          let eventName = "successfullogin";
+          let data = new Object();
+          data["agentId"] = res;
+          data["agentStatus"] = res;
+          data["extension"] = res;
+          sendEvent(eventName, data);
+        }
+        
+        else if (event.data.eventName == "CallStartNotification") {
+		  console.log("Event received on HTML:", event.data);
+          if (callEventCheck) {
+            callEventCheck = false;
+            let data = event.data.value.data;
+			genesysData = data;
+            console.error("PAYLOAD", data);
+            var id = data.callId;
+            var type = "";
+            var subtype = "";
+            var channel = "";
+
+            if (data.actions.actionList.includes("CALLALERT")) {
+              if (data.actions.CALLALERT) {
+                type = "PHONE";
+                subtype = "Phone";
+                channel = "Phone";
+              }
+            // } else if (data.actions.actionList.includes("CHATALERT")) {
+            } 
+            else if (data.actions.actionList.includes("CHAT")) {
+              if (data.actions.CHATALERT) {
+                type = "CHAT";
+                subtype = "WEBCHAT";
+                channel = "Chat";
+              }
+            // } else if (data.actions.actionList.includes("EMAILALERT")) {
+            } 
+            else if (data.actions.actionList.includes("EMAIL")) {
+              if (data.actions.EMAILALERT) {
+                type = "EMAIL";
+                subtype = "Email";
+                channel = "Email";
+              }
+            }
+
+            var name = "";
+            var phone = "";
+            var email = "";
+
+            if (data.actions.actionList.includes("CALLALERT")) {
+              if (data.genesysObj.participants.length == 1) {
+                name = data.genesysObj.participants[0].calls[0].other.name;
+                phone = data.dialedNumber;
+                text =
+                  data.genesysObj.participants[0].calls[0].other
+                    .addressNormalized;
+                email = getEmail(text);
+              } else if (data.genesysObj.participants.length == 2) {
+                name = data.genesysObj.participants[1].calls[0].other.name;
+                phone = data.dialedNumber;
+                text =
+                  data.genesysObj.participants[1].calls[0].other
+                    .addressNormalized;
+                email = getEmail(text);
+              } else if (data.genesysObj.participants.length == 3) {
+                name = data.genesysObj.participants[2].calls[0].other.name;
+                phone = data.dialedNumber;
+                text =
+                  data.genesysObj.participants[2].calls[0].other
+                    .addressNormalized;
+                email = getEmail(text);
+
+                 var result = {
+              from: {
+                email: email,
+                name: name,
+              },
+              customerName : name,
+              customerPhoneNumber: phone,
+              customerEmail: email,
+              dynamicFields: {
+                Email: email,
+                "Phone Number": phone,
+                Name: name,
+              },
+            };
+            console.error("CM DATA TO SEARCH", result);
+            // sendEvent("NDS_DATA_LOAD", result);
+            sendEvent("NDS_LOAD_TICKET_PHONE", result);
+              }
+            // } else if (data.actions.actionList.includes("CHATALERT")) {
+            } 
+            else if (data.actions.actionList.includes("CHAT")) {
+              console.error("Inside ChaT");
+              name = data.genesysObj.participants[0].name;
+              phone =
+                data.genesysObj.participants[0].attributes["context.phone"];
+              email =
+                data.genesysObj.participants[0].attributes["context.email"];
+              console.error("mail", email);
+
+              var result = {
+              from: {
+                email: email,
+                name: name,
+              },
+              customerName : name,
+              customerPhoneNumber: phone,
+              customerEmail: email,
+              dynamicFields: {
+                Email: email,
+                "Phone Number": phone,
+                Name: name,
+              },
+            };
+            console.error("CM DATA TO SEARCH", result);
+            // sendEvent("NDS_DATA_LOAD", result);
+            sendEvent("NDS_LOAD_TICKET_CHAT", result);
+            // } else if (data.actions.actionList.includes("EMAILALERT")) {
+            } 
+            
+            else if (data.actions.actionList.includes("EMAIL")) {
+              name = data.genesysObj.participants[0].name;
+              console.error(name, "EMAL NAME");
+              phone = "";
+              email = data.genesysObj.participants[0].address;
+
+              var result = {
+              from: {
+                email: email,
+                name: name,
+              },
+              customerName : name,
+              customerPhoneNumber: phone,
+              customerEmail: email,
+              dynamicFields: {
+                Email: email,
+                "Phone Number": phone,
+                Name: name,
+              },
+            };
+            console.error("CM DATA TO SEARCH", result);
+            // sendEvent("NDS_DATA_LOAD", result);
+            sendEvent("NDS_LOAD_TICKET_EMAIL", result);
+            }
+
+            function getEmail(text) {
+              if (
+                (text.includes("%40") && text.includes("@")) ||
+                text.includes("%40")
+              ) {
+                if (text.includes("sip:")) {
+                  var text2 = text.replace("sip:", "");
+                }
+                var i = text2.indexOf("@");
+                var email = text2.substring(0, i);
+                var email2 = email.replace("%40", "@");
+                return email2;
+              }
+            }
+
+            // var result = {
+            //   from: {
+            //     email: email,
+            //     name: name,
+            //   },
+            //   customerName : name,
+            //   customerPhoneNumber: phone,
+            //   customerEmail: email,
+            //   dynamicFields: {
+            //     Email: email,
+            //     "Phone Number": phone,
+            //     Name: name,
+            //   },
+            // };
+            // console.error("CM DATA TO SEARCH", result);
+            // // sendEvent("NDS_DATA_LOAD", result);
+            // sendEvent("NDS_LOAD_TICKET_CHAT", result);
+          }
+        } 
+        
+        else if (event.data.eventName == "CallEndNotification") {
+		  console.log("Event received on HTML:", event.data);
+          if (!callEventCheck) {
+            callEventCheck = true;
+            let data = genesysData;
+            console.error("CALL DATA", data);
+            var id = data.callId;
+            //id = id.replace(/\D/g, "");
+            var interactionType = "";
+            var interactionSubType = "";
+            var channel = "";
+
+            var name = "";
+            var phone = "";
+            var email = "";
+            var obj = new Object();
+            if (data.actions.actionList.includes("CALLALERT")) {
+              interactionType = "PHONE";
+              let startDateTime = new Date();
+              interactionSubType =
+                "Phone received at " + startDateTime.toLocaleString();
+              if (data.genesysObj.participants.length == 1) {
+                name = data.genesysObj.participants[0].calls[0].other.name;
+                phone = data.dialedNumber;
+                text =
+                  data.genesysObj.participants[0].calls[0].other
+                    .addressNormalized;
+                email = getEmail(text);
+              } 
+              else if (data.genesysObj.participants.length == 2) {
+                name = data.genesysObj.participants[1].calls[0].other.name;
+                phone = data.dialedNumber;
+                text =
+                  data.genesysObj.participants[1].calls[0].other
+                    .addressNormalized;
+                email = getEmail(text);
+              } 
+              else if (data.genesysObj.participants.length == 3) {
+                name = data.genesysObj.participants[2].calls[0].other.name;
+                phone = data.dialedNumber;
+                text =
+                  data.genesysObj.participants[2].calls[0].other
+                    .addressNormalized;
+                email = getEmail(text);
+              }
+
+              // var data = new Object();
+              obj = {
+                id: id, //Caller Number
+                // siteId: siteId,
+                // groupId: groupId,
+                // subGroupId: subGroupId,
+                //interactionType: interactionType,
+                interactionSubType: interactionSubType, //subject
+                customerFirstName: name,
+                customerLastName: name,
+                customerEmail: email,
+                customerPhoneNumber: phone,
+                //customerId: data.callId,
+                //dynamicFields: {
+                  // Email: email,
+                  // Name: name,
+                  // "Phone Number": phone,
+                  //emailId: email,
+                  //name: name,
+                  //mobileNo: phone,
+                //},
+                chatTranscript: [
+                  {
+                    chatMessage: "Phone Call", //message
+                  },
+                ],
+              };
+
+              sendEvent("NDS_CREATE_TICKET_PHONE", obj);
+            // } else if (data.actions.actionList.includes("CHATALERT")) {
+            } 
+            
+            else if (data.actions.actionList.includes("CHAT")) {
+              interactionType = "CHAT";
+              let startDateTime = new Date();
+              interactionSubType =
+                "Chat received at " + startDateTime.toLocaleString();
+              console.error("Inside ChaT");
+              name = data.genesysObj.participants[0].name;
+              phone =
+                data.genesysObj.participants[0].attributes["context.phone"];
+              email =
+                data.genesysObj.participants[0].attributes["context.email"];
+              console.error("mail", email);
+
+              // obj["eventName"] = "NDS_CREATE_TICKET";
+              // obj["eventType"] = "EXTERNAL_EVENT_TO_CM";
+              // var data = new Object();
+              obj = {
+                id: id, //Caller Number
+                // siteId: siteId,
+                // groupId: groupId,
+                // subGroupId: subGroupId,
+                // interactionType: interactionType,
+                interactionSubType: interactionSubType, //subject
+                customerFirstName: name,
+                customerLastName: name,
+                customerEmail: email,
+                customerPhoneNumber: phone,
+                // customerId: data.callId,
+                // dynamicFields: {
+                  //Email: email,
+                  // emailId: email,
+                  // name: name,
+                  // mobileNo: phone,
+                // },
+                chatTranscript: [
+                  {
+                    chatMessage: "Chat", //message
+                  },
+                ],
+              };
+
+              sendEvent("NDS_CREATE_TICKET_CHAT", obj);
+            } 
+			// else if (data.actions.actionList.includes("EMAILALERT")) {
+
+			else if (data.actions.actionList.includes("EMAIL")) {
+              interactionType = "EMAIL";
+              let startDateTime = new Date();
+              interactionSubType =
+                "Email received at " + startDateTime.toLocaleString();
+              //   name = data.fromAddress;
+              //   let res = "";
+              //   let index = name.indexOf("@");
+              //   if (index >= 0) {
+              //     res = name.substring(0, index);
+              //   }
+              name = data.genesysObj.participants[0].name;
+              console.error(name, "EMAL NAME");
+              phone = "";
+              email = data.genesysObj.participants[0].address;
+
+              // obj["eventName"] = "NDS_CREATE_TICKET";
+              // obj["eventType"] = "EXTERNAL_EVENT_TO_CM";
+              // var data = new Object();
+              obj = {
+                id: id,
+                //customerId: id,
+				// siteId: siteId,
+                // groupId: groupId,
+                // subGroupId: subGroupId,
+                customerFirstName: name,
+                customerLastName: name,
+                customerEmail: email,
+                customerPhoneNumber: phone,
+                from: {
+                  name: name,
+                  email: email,
+                  //   emailId: email,
+                  //   name: name,
+                },
+                subject:interactionSubType,
+                participants: [
+                  {
+                    message: "Email", //email body
+                  },
+                ],
+                type: "EMAIL",
+              };
+
+              sendEvent("NDS_CREATE_TICKET_EMAIL", obj);
+            }
+
+            function getEmail(text) {
+              if (
+                (text.includes("%40") && text.includes("@")) ||
+                text.includes("%40")
+              ) {
+                if (text.includes("sip:")) {
+                  var text2 = text.replace("sip:", "");
+                }
+                var i = text2.indexOf("@");
+                var email = text2.substring(0, i);
+                var email2 = email.replace("%40", "@");
+                return email2;
+              }
+            }
+
+            console.error("DATA FOR CM", obj);
+            //sendEvent("NDS_CREATE_TICKET", obj);
+            //sendEvent("NDS_CREATE_TICKET_CHAT", obj);
+			genesysData = {};
+          }
+        }
+      }
+    </script>
+  </body>
+  <div id="mydiv" class="iframeContainerStyle" style="height: 99vh">
+    <iframe
+      src="https://uat.novelvox.net/cmui/?isInternal=true"
+      id="cmFrame"
+      frameborder="0"
+      width="100%"
+      height="100%"
+      allow="camera *;microphone *"
+    >
+    </iframe>
+  </div>
+</html>

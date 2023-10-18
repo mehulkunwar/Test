@@ -1,0 +1,1404 @@
+<html><head>
+    <title>DYNAMICS NV CTI</title>
+    <script src="ClientGlobalContext.js.aspx" type="text/javascript"></script>
+    <script src="https://ajax.aspnetcdn.com/ajax/jQuery/jquery-3.3.1.min.js"></script>
+    <script type="text/javascript">
+        var callCenterMapObj = new Map();
+        var speedDialMapObj = new Map();
+        var countryIddMapObj = new Map();
+
+        $(document).ready(function() {
+
+            $.ajax({
+                type: "GET",
+                url: "/WebResources/new_NV_countryCode_idd",
+                dataType: "xml",
+                success: function(xml) {
+                    $(xml).find('country').each(function() {
+                        var countryName = $(this).find('name').text();
+                        var dialCode = $(this).find('dial_code').text();
+                        countryName = countryName.toLowerCase().replace(/[^A-Z0-9]/ig, "");
+                        countryIddMapObj.set(countryName, dialCode);
+                        console.log(countryName, countryIddMapObj.get(countryName));
+                    });
+                },
+                error: function() {
+                    alert("An error occurred while processing XML file.");
+                }
+            });
+
+           $.ajax({
+                type: "GET",
+                url: "/WebResources/new_NV_CallCenter_Adapter",
+                dataType: "xml",
+                success: function(xml) {
+                    $(xml).find('items').each(function() {
+                        var name = $(this).find('name').text();
+                        var value = $(this).find('value').text();
+                        callCenterMapObj.set(name, value);
+                        console.log(name, callCenterMapObj.get(name));
+                    });
+                    $(xml).find('keyPressed').each(function() {
+                        var key = $(this).find('key').text();
+                        var phoneNumber = $(this).find('phoneNumber').text();
+                        speedDialMapObj.set(key, phoneNumber);
+                        console.log(key, speedDialMapObj.get(key));
+                    });
+                    getUrl();
+                },
+                error: function() {
+                    alert("An error occurred while processing XML file.");
+                }
+            });
+        });
+
+        function getUrl() {
+            console.log("in get url method");
+            var url = callCenterMapObj.get('URL');
+            document.getElementById("iagentFrame").src = url;
+        }
+
+    </script>
+    <script>
+        var onlineWebApi = Xrm.WebApi.online;
+        var mapObj = new Map();
+		 var entityFormOptions = {};
+        var ANI;
+        var accountId = "";
+        var mapObj = new Map();
+        var NumberOfContactRecords;
+		var NumberOfLeadRecords
+        var entity = "";
+        var startCallTime;
+        var endCallTime;
+		var contactId;
+		var leadId;
+		var clickToCallLogFlag;
+		var directionCode;
+		var newANI;
+		var isContact;
+		var isSimulatotor=false;
+		var channelType;
+		var whatsAppNumber;
+		var whatsAppNumberSubStr;
+		var AccountData;
+		var ContactData;
+		var updateLogId;
+		var clicktodialFlag=false;
+		var dnis;
+		var outboundCall=false;
+		var number;
+		var recordTypeInfo;
+		var recordIdInfo;
+		var recordData={};
+		var notesCheck=true;
+		
+		console.log("Xrm.Page.context : ",Xrm.Page.context);
+        var receiveMessage = function(event) {
+            try {
+                handleMessages(event);
+            } catch (err) {
+                console.log('error occured');
+                console.error('receiveMessage', err.message);
+            }
+        }
+
+        var addEvent = window.attachEvent || window.addEventListener;
+        var event = window.attachEvent ? 'onmessage' : 'message';
+        console.log('event==>>', event);
+        addEvent(event, receiveMessage);
+
+        function handleMessages(event) {
+            console.log("in handleMessages event==>", event);	
+			console.log("EVENT NAME==>", event.data.eventName);				
+            if (event.data.eventName == "CallStartNotification" ) {				
+				console.log("Novelvox CallStartNotification Event Recived", event);
+                startCallTime = new Date();
+                console.log(" start time ==> ", startCallTime);
+				recordData["callVariables"]=event.data.value.callVariables;
+				recordData["callId"]=event.data.value.callId; 				
+				getCallVariables(event);
+				/*console.error("recordData[callVariables][8][value]",recordData["callVariables"][8]["value"]);
+				console.error("recordData[callVariables][9][value]",recordData["callVariables"][9]["value"]);
+				
+				if(recordData["callVariables"][8]["value"]&&(recordData["callVariables"][9]["value"])){
+					console.error("inside if condiiotn to call");
+                    let objectType=  recordData["callVariables"][8]["value"];                   
+                    if(objectType == 'account'){
+						accountId=recordData["callVariables"][9]["value"];
+						leadId="";
+						contactId="";
+               		   
+                	} else if(objectType == 'contact'){
+                    	contactId=recordData["callVariables"][9]["value"];
+						accountId="";
+						leadId="";
+                	}
+					else if(objectType == 'lead'){
+                    	leadId=recordData["callVariables"][9]["value"];
+						contactId="";
+						accountId="";
+                	}
+                     console.error("recordData[callVariables][9][value]",recordData["callVariables"][9]["value"]);
+					screenPopCallVar(objectType,recordData["callVariables"][9]["value"]);
+                    }
+				else{	*/			
+                screenPop(event,"VOICE");
+				
+				//}
+					
+		
+			
+            } else if (event.data.eventName == "APPLICATION_INITIALIZED") {
+                    console.log("Application initialized event received");
+                    getServerSetting();
+                    console.log("curent page url",window.location.href);
+                    console.log("window.parent.location.href",window.parent.location.href);
+					searchContact(event);
+                    
+                }
+				 else if (event.data.eventName == "ASSOCIATE_RECORD") {
+					 getRecordIdFromUrl();											 					 
+				 }
+				 else if (event.data.eventName == "SCREEN_TRANSFER") {
+					 getRecordIdFromUrl();
+					 sendRecordUrl();
+					 
+				 }
+			 else if (event.data.eventName == "CallTransferNotification") {
+                console.log("Novelvox CallTransferNotification Event Recived", event);
+                
+            }else if (event.data.eventName == "CallEndNotification") {
+				//notesCheck = false;
+                console.log("Novelvox CallEndNotification Event Recived", event);
+				clicktodialFlag=false;
+				dnis=null;
+				outboundCall=false;
+				 if(event.data.value=="TRANSFER"){
+                       recordData["recordType"]="";
+                        recordData["recordId"]="";                       
+                      sendRecordUrl();
+                     }
+              
+            } else if (event.data.eventName == "AgentStateNotification") {
+
+                console.log("Novelvox AgentStateNotification Event Recived", event);
+
+                if ("READY" == event.data.value.status || "TALKING" == event.data.value.status) {
+                    disableClickToCall();
+
+                } else if ("LOGOUT" == event.data.value.status) {
+
+                    disableClickToCall();
+                    if (cmp.get('v.logout') == "true" || cmp.get('v.logout') == "TRUE") {
+                        logout();
+                    }
+
+                } else {
+                    enableClickToCall();
+                }
+
+            } else if (event.data.eventName == "Click_To_Call_Event") {
+			
+			
+			console.log(" in Click_To_Call_Event==>", event.data);
+				//sendEventToInnerIframe();
+				
+				
+				
+				clicktodialFlag=true;
+				clickToCallLogFlag=true;
+                                outboundCall=true;
+				
+                console.log(" in Click_To_Call_Event==>", event.data);
+                number = event.data.phoneNumber;
+                entity = event.data.entity;
+				console.log("in Click_To_Call_Event==>event.data.id",event.data.id);
+				var id = event.data.id.replace(/[{}]/g, "");
+                console.log("phoneNumber in Click_To_Call_Event==>", number);
+                console.log("entity in Click_To_Call_Event==>", entity);
+				if(entity=='contact'){
+					contactId=id;
+					isContact=true;
+					console.log("in Click_To_Call_Event==>ContactId",contactId);
+				}
+				else if(entity=='lead'){
+					leadId=id;
+					isContact=false;
+					console.log("in Click_To_Call_Event==>leadId",leadId);
+				}
+					endCallTime = new Date();
+					console.log(" End time ==> ", endCallTime);
+					var callTime = getCallTime(startCallTime, endCallTime);
+					callTime = callTime + ' ';
+					console.log(" callTime ==> ", callTime);
+					
+					
+				
+				clickToDial("SMALLCTI_MAKECALLFROMMSD",number,"makeCall");
+				//logCall(callTime,notes,wrapup);
+			
+            } else if (event.data.eventName == "dialed_number_event") {
+
+                switch (event.data.value) {
+                    case '0':
+                    case '1':
+                    case '2':
+                    case '3':
+                    case '4':
+                    case '5':
+                    case '6':
+                    case '7':
+                    case '8':
+                    case '9':
+                        console.log("this is case: ", event.data.value);
+                        ANI = speedDialMapObj.get(event.data.value);
+                        clickToDial("ServiceNowMakeCall", ANI);
+                        break;
+                    default:
+                        ANI = event.data.value;                       
+                        console.log("this is default case:", ANI);
+                        clickToDial("ServiceNowMakeCall", ANI);
+
+                }
+            }
+			else if (event.data.eventName == "Multi_Match_From_NDS") {
+					var evnt = event.data;
+					console.log("in Multi_Match_From_NDS Event",evnt);
+					//result = event;
+					console.log("screenPop");
+					screenPop(event,"OPEN_FROM_NDS");
+					
+			}
+			
+			
+			
+			else if (event.data.eventName == "notes1234") {
+				if(notesCheck){
+					notesCheck = false;
+					console.log("in PhoneCallWrapUp Event",event);
+					var notes = event.data.data.notes; 
+					var wrapup = event.data.data.wrapup;
+					console.log("notes==>",notes);
+					console.log("wrapup==>",wrapup);
+					
+					endCallTime = new Date();
+					console.log(" End time ==> ", endCallTime);
+					var callTime = getCallTime(startCallTime, endCallTime);
+					callTime = callTime + ' ';
+					console.log(" callTime ==> ", callTime);
+					
+					logCall(callTime,notes,wrapup);
+				}
+					
+			} 
+	
+			
+				else if (event.data.eventName == "updateNotes") {
+					console.log("in updateNotes Event",event);
+					var notes = event.data.data.notes; 
+					var wrapup = event.data.data.wrapup;
+					console.log("notes==>",notes);
+					console.log("wrapup==>",wrapup);
+					updateCallLogs(notes,wrapup);
+				}
+				else if (event.data.eventName == "updateDnis") {
+					console.log("in updateDnis Event",event.data);
+					dnis=event.data.data;
+					outboundCall=true;
+					
+				}
+				else if (event.data.eventName == "SearchContact") {
+                      console.log("SearchContact event recieved:", JSON.stringify(event.data));
+                     searchContact(event);
+                    
+                }
+	
+			else if (event.data.eventName == "openRecord") {
+				if(event.data.entityType == "contact"){
+							isContact=true;
+							console.log("in openContact Event",event);
+							contactId = event.data.data; 
+							console.log("Contact id  from retrieveMultipleRecords block :", contactId);
+							var entityFormOptions = {};
+							entityFormOptions["entityName"] = event.data.entityType;
+							entityFormOptions["entityId"] = ContactId;
+							entityFormOptions["openInNewWindow"] = false;
+							Xrm.Navigation.openForm(entityFormOptions).then(
+											function(success) {
+												console.log("contact open successfully",entityFormOptions,success);
+											},
+											function(error) {
+												console.log(error);
+											});
+				}
+			
+							
+					
+					
+			}	
+				
+		
+        };
+				function sendRecordUrl(){
+			
+			console.log("send recordData:",recordData);
+			 try
+                 {
+                        var obj = new Object();
+                        obj['eventName'] = "RECORD_VARIABLE_UPDATE";
+                        obj['value'] =recordData;
+                        obj['data'] =recordData;
+                        obj['eventType'] = "EXTERNAL_EVENT_TO_NDS";
+                        var win = document.getElementById("iagentFrame").contentWindow;
+                        win.postMessage(obj, '*');
+                        console.log("message send to nds",obj);
+				 }
+                 catch (err)
+                        {
+                             console.log("failed to send data :" + err.message);
+                  }
+			
+			
+			
+			
+		}
+			function getRecordIdFromUrl(){
+						let  url=window.parent.location.href;
+						recordUrl=url;
+						let array=url.split("&");
+						console.log(array);
+
+						let recordArray=array[3].split("=");
+						let recordIdInfo=array[4].split("=");
+						console.log("recordArray",recordArray);
+						console.log("recordIdInfo",recordIdInfo);
+
+						let recordType=recordArray[1];
+						let recordId=recordIdInfo[1];
+
+						console.log("recordId",recordId);
+						console.log("recordType",recordType);
+						if(recordType=="contact"){	
+						contactId=recordId;
+						accountId="";
+						leadId="";
+						isContact=true;
+						}
+						else if(recordType=="lead"){
+							leadId=recordId;
+							contactId="";
+							accountId="";
+							isContact=false;
+							
+						}
+						else if(recordType=="account"){
+							accountId=recordId;
+							leadId="";
+							contactId="";
+							isContact=false;
+							
+						}
+						console.log("recordType is:",recordType);
+						console.log("recordId is:",recordId);
+						recordData["recordType"]=recordType;
+						recordData["recordId"]=recordId;
+						console.log("record data is:",recordData);
+			
+			
+			
+		}
+		
+		function searchContact(event){
+			
+	var resultObject={};
+	var name="U%";
+       
+	var querystringContact = "?$select=contactid,fullname&$filter=startswith(fullname,name)";
+	var querystringLead = "?$select=leadid,fullname&$filter=startswith(fullname,name)";
+	//var querystringContact = "?$select=contactid,fullname&$filter=mobilephone eq '" + ANI + "' or telephone1 eq '" + ANI + "'or telephone2 eq '" + ANI + "'";
+	// var querystringLead = "?$select=leadid,fullname&$filter=mobilephone eq '" + ANI + "' or telephone1 eq '" + ANI + "'or telephone2 eq '" + ANI + "'";
+	console.log('querystringContact',querystringContact);
+	console.log('querystringLead',querystringLead);
+	Xrm.WebApi.retrieveMultipleRecords("contact", querystringContact).then(
+                function success(result) {
+					 NumberOfContactRecords = result.entities.length;
+					 ContactData = result.entities;
+					 console.log("contact query :",result);
+					  if (NumberOfContactRecords == 0) {
+						  //No contact record found
+						  //Check for lead
+						  console.log("NumberOfContactRecords =0");
+						  Xrm.WebApi.retrieveMultipleRecords("lead", querystringLead).then(
+							function success(result) {
+								 NumberOfLeadRecords = result.entities.length;
+								  LeadData = result.entities;
+								  if (NumberOfLeadRecords == 0) {
+									 //No lead record found
+									 // Open new contact form with ani pre populated
+									  console.log('No Lead and contact Record Found');
+									  contactId='';
+									  leadId='';
+									var formParameters = {};
+										formParameters["telephone1"] = number;	
+											console.log("formParameters['telephone1']",formParameters["telephone1"]);
+									var entityFormOptions = {};										
+										entityFormOptions["entityName"] = "contact";
+										entityFormOptions["openInNewWindow"] = false;
+									
+									 Xrm.Navigation.openForm(entityFormOptions, formParameters).then(
+										function(success) {
+											console.log(success);
+										},
+										function(error) {
+											console.log(error);
+										});
+
+																					  
+								  }
+								  else if(NumberOfLeadRecords == 1){
+									  // One lead record found
+									  // pop lead record
+										console.log('single lead record found');
+										
+										leadId = result.entities[0].leadid;
+										console.log("lead id retrieveMultipleRecords block==>", leadId);
+									var entityFormOptions = {};	
+										entityFormOptions["entityName"] = "lead";
+										entityFormOptions["entityId"] = leadId;
+										entityFormOptions["openInNewWindow"] = false;
+										isContact=false;
+										 Xrm.Navigation.openForm(entityFormOptions).then(
+											function(success) {
+												console.log(success);
+											},
+											function(error) {
+												console.log(error);
+											});
+													  
+								  }else{
+									  //Multiple lead records found 
+									  //send data to nds
+									   console.error("LeadData",LeadData,"ContactData",ContactData);
+									   handleMultipleRecords(LeadData,ContactData,"MultipleRecordFound");
+								  }
+							},
+							function(error) {
+								console.log('screenpop error message==>', error);
+
+							}
+						);
+									  
+						  
+					  } else if(NumberOfContactRecords == 1){
+							console.log("NumberOfContactRecords",NumberOfContactRecords,ContactData);
+						  Xrm.WebApi.retrieveMultipleRecords("lead", querystringLead).then(
+							function success(result) {
+								 console.log("NumberOfContactRecords == 1 and lead result",result);
+								 NumberOfLeadRecords = result.entities.length;
+								  LeadData = result.entities;
+								  if (NumberOfLeadRecords == 0) {
+									 //No lead record found
+									 // Open matching contact 
+									 	
+										console.log('single contact record found and lead 0',result,ContactData);
+										
+										contactId = ContactData[0].contactid;
+										console.log("contact id retrieveMultipleRecords block==>", contactId);
+										isContact=true;
+										var entityFormOptions = {};	
+											entityFormOptions["entityName"] = "contact";
+											entityFormOptions["entityId"] = ContactId;
+											entityFormOptions["openInNewWindow"] = false;
+											
+										console.log('entityFormOptions',entityFormOptions);
+										 Xrm.Navigation.openForm(entityFormOptions).then(
+											function(success) {
+												console.log(success);
+											},
+											function(error) {
+												console.log(error);
+											});
+									 
+									  									  
+								  }
+								  else if(NumberOfLeadRecords == 1){
+									  // One lead record found
+									  //send contact and lead data to nds
+									    console.error("NumberOfLeadRecords == 1 and contact 1 and LeadData",LeadData,"ContactData",ContactData);
+									    handleMultipleRecords(LeadData,ContactData,"MultipleRecordFound");
+								  }else{
+									  //Multiple lead records found 
+									  //send contact and lead data to nds
+									    console.error("Multiple LeadData and contact 1",LeadData,"ContactData",ContactData);
+									    handleMultipleRecords(LeadData,ContactData,"MultipleRecordFound");
+								  }
+							},
+							function(error) {
+								console.log('error message==>', error);
+
+							}
+						);
+					  }else {
+						  //Multiple contact records found
+						  console.log("multiple contact found");
+						   Xrm.WebApi.retrieveMultipleRecords("lead", querystringLead).then(
+							function success(result) {
+								 console.log("multiple contact found and lead result",result);
+								 NumberOfLeadRecords = result.entities.length;
+								 LeadData = result.entities;
+								  if (NumberOfLeadRecords == 0) {
+									 //No lead record found
+									 //Send contact data to NDS
+									   console.log("multiple contact found and lead result ==0",LeadData,ContactData);
+									   handleMultipleRecords(LeadData,ContactData,"MultipleRecordFound");
+									  									  
+								  }
+								  else if(NumberOfLeadRecords == 1){
+									  // One lead record found
+									  //send contact and lead data to nds
+									  console.log("multiple contact found and lead result ==1",LeadData,ContactData);
+									   handleMultipleRecords(LeadData,ContactData,"MultipleRecordFound");
+								  }else{
+									  //Multiple lead records found 
+									  //send contact and lead data to nds
+									  console.log("multiple contact found and lead result ==multiple",LeadData,ContactData);
+									   handleMultipleRecords(LeadData,ContactData,"MultipleRecordFound");
+								  }
+							},
+							function(error) {
+								console.log('error message==>', error);
+
+							}
+						);
+					  }
+				},
+                function(error) {
+                    console.log('error message==>', error);
+
+                }
+            );
+
+			
+			
+		}
+		
+		
+		
+		
+		
+		
+			function getServerSetting(){
+			var serverConfig = callCenterMapObj.get('SERVER_CONFIG');
+			console.log("server config is:",serverConfig);
+			 try
+                 {
+                        var obj = new Object();
+                        obj['eventName'] = "ServerConfig";
+                        obj['value'] =serverConfig;
+                        obj['data'] =serverConfig;
+                        obj['eventType'] = "EXTERNAL_EVENT_TO_NDS";
+                        var win = document.getElementById("iagentFrame").contentWindow;
+                        win.postMessage(obj, '*');
+                        console.log("message send to nds",obj);
+				 }
+                 catch (err)
+                        {
+                             console.log("failed to send data :" + err.message);
+                        }
+			
+			
+		} 
+		 function getCallVariables(event) {
+            console.log("in getCallVariables",event,event.data,event.data.value);
+            var obj = new Object();
+            
+            obj = event.data.value.callVariables;
+            for (var i = 0; i < obj.length; i++) {
+                mapObj.set(obj[i].key, obj[i].value);
+                console.log(obj[i].key, mapObj.get(obj[i].key));
+            }
+        }
+
+       
+
+        function softPhonePop() {
+            console.log("in Soft Pop");
+        }
+
+        function formatPhoneNumber(phoneNumberString) {
+            var cleaned = ('' + phoneNumberString).replace(/\D/g, '')
+            var match = cleaned.match(/^(1|)?(\d{3})(\d{3})(\d{4})$/)
+            if (match) {
+                var intlCode = (match[1] ? '+1 ' : '')
+                return [intlCode, match[2], " ", match[3], " ", match[4]].join('')
+            }
+            return null
+        }
+		
+	function getWrapupReasons(){
+		// Change query as per the entity in client CRM
+		var uid = Xrm.Utility.getGlobalContext().userSettings.userId;
+		 uid=uid.replace(/[{}]/g, "");
+		 var querystringWrapup = "?$select=rsm_name" ;
+		var wrapupArray=[];
+		 console.error("querystringWrapup",querystringWrapup);
+		 //Change entity name as per client crm
+		 	Xrm.WebApi.retrieveMultipleRecords("rsm_calloutcome", querystringWrapup).then(
+                function success(result) {
+					console.log("wrap reasons:",result);
+					if(result && result.entities){
+					sendWrapupToNDS(result.entities,"WRAPUP_REASONS");
+					}
+					else{
+						console.log("No wrap up code");
+					}
+				},
+                function(error) {
+                    console.log('error message==>', error);
+
+                }
+            );
+	}	
+	function sendWrapupToNDS(wrapupData,eventName){
+				console.log("sendWrapupToNDS==>",wrapupData,eventName);
+				  try {
+					  var dataObj = new Object();
+					  dataObj['wrapupData'] = wrapupData;
+									
+					  
+					  var obj = new Object();
+							obj['eventName'] = eventName;
+							obj['data'] = dataObj;
+							obj['eventType'] = "EXTERNAL_EVENT_TO_NDS";
+							var win = document.getElementById("iagentFrame").contentWindow;
+							
+							win.postMessage(obj, '*');
+							console.log("after sending wrapup codes");
+						} catch (err) {
+							console.log("FinesseGadgetUtil Error Posting Message :",
+								err.message);
+						}
+		}	
+		
+		function screenPopCallVar(recordType,recordId){
+			
+						var entityFormOptions = {};
+                        console.error("screenPopCallVar==>", recordId,recordType);
+                        entityFormOptions["entityName"] = recordType;
+                        entityFormOptions["entityId"] =recordId;
+                        entityFormOptions["openInNewWindow"] = false;
+                        openForm(entityFormOptions);
+			
+			
+		}
+		
+	   function screenPop(event,channelType) {
+            console.log("screenPop and event is",event);
+			console.log("screenPop and event is",event);
+			if(channelType =="OPEN_FROM_NDS"){
+
+				ANI = event.data.data.name.contactid;
+				console.log("in screenPop ANI is: ", ANI);
+				var querystring = "?$select=contactid,fullname&$filter=contactid eq '" + ANI + "'";
+				console.log('querystring===>', querystring);
+			}
+			
+			if(channelType =="VOICE"){
+
+				ANI = mapObj.get("ani");//"2049"
+				if(!ANI){
+					ANI="2049";
+				}
+				console.log("in screenPop ANI is: ", ANI);
+
+				
+				var querystring = "?$select=contactid,fullname&$filter=telephone1 eq '" + ANI + "' or mobilephone eq '" + ANI + "'";
+			
+				console.log('querystring===>', querystring);
+			}
+		
+				
+            Xrm.WebApi.retrieveMultipleRecords("contact", querystring).then(
+                function success(result) {
+				
+					console.log("result==>", result);
+                    console.log("result==>", JSON.stringify(result));
+                    console.log("MULTIPLE RECORDS RESULT", JSON.stringify(result.entities.length));
+                    NumberOfRecords = result.entities.length;
+                    console.log('NumberOfRecords', NumberOfRecords);
+
+                    if (NumberOfRecords == 0) {
+						console.log('No records found');
+						isContact=false;
+
+                        /* var url = "/multientityquickfind/multientityquickfind.aspx?pagemode=iframe&text=" + newANI;
+                        console.log('URL : ', url);
+                        var openUrlOptions = {
+                            height: 400,
+                            width: 800
+                        };
+
+                        Xrm.Navigation.openUrl(url, openUrlOptions); */
+						
+						var formParameters = {};
+						if(channelType =="VOICE"){
+							formParameters["telephone1"] = ANI;
+						}
+						
+						console.log(channelType + 'FormParameters:', formParameters);
+                        console.log('No Record Found');
+                        entityFormOptions["entityName"] = "lead";
+						entityFormOptions["entityId"] = null;
+                        entityFormOptions["openInNewWindow"] = false;
+						openFormLead(entityFormOptions, formParameters);
+						
+
+                    } else if (NumberOfRecords == 1) {
+                        console.log('single record found');
+                        contactId = result.entities[0].contactid;
+						isContact=true;
+                        console.log("account id retrieveMultipleRecords block==>", contactId);
+                        entityFormOptions["entityName"] = "contact";
+                        entityFormOptions["entityId"] = contactId;
+                        entityFormOptions["openInNewWindow"] = false;
+                        openForm(entityFormOptions);
+
+                    } else {
+                        console.log('Multiple records found');
+						if(channelType =="VOICE"){
+							//var url = "/multientityquickfind/multientityquickfind.aspx?pagemode=iframe&text=" + newANI;
+							// Send EVENT TO Angular application 
+							
+							console.log("MULTIPLE RECORDS FOUND",result.entities);
+							 try
+                 {
+                        var obj = new Object();
+                        obj['eventName'] = "MULTIPLE_RECORDS_FOUND";
+                        obj['value'] = result;
+                        obj['data'] = result;
+                        obj['eventType'] = "EXTERNAL_EVENT_TO_NDS";
+                        var win = document.getElementById("iagentFrame").contentWindow;
+                        win.postMessage(obj, '*');
+						
+                        console.log("message send to nds",obj);
+				 }
+                 catch (err)
+                        {
+                             console.log("failed to send data :" + err.message);
+                        }
+			
+			
+					}
+								
+						
+                        console.log('URL : ', url);
+                        var openUrlOptions = {
+                            height: 400,
+                            width: 800
+                        };
+
+                        Xrm.Navigation.openUrl(url, openUrlOptions);
+
+                    }
+
+
+                },
+                function(error) {
+                    console.log('error message==>', error);
+
+                }
+            );
+        }	   function openForm(entityFormOptions) {
+
+            console.log("Open form");
+            Xrm.Navigation.openForm(entityFormOptions).then(
+                function(success) {
+                    console.log(success);
+                },
+                function(error) {
+                    console.log(error);
+                });
+
+        }
+		 function openFormLead(entityFormOptions, formParameters) {
+
+            console.log(" in lead formParameters==>", formParameters.telephone1);
+            Xrm.Navigation.openForm(entityFormOptions, formParameters).then(
+                function(success) {
+                    console.log(success);
+                },
+                function(error) {
+                    console.log(error);
+                });
+
+        }
+ function screenPopq(event) {
+	 
+	
+	if(outboundCall){
+		number=dnis;
+	}else{
+		number=mapObj.get("ANI");
+	}
+
+	ANI = mapObj.get("ANI");
+	
+	console.log("number IS:",number);
+       
+
+	var querystringContact = "?$select=contactid,fullname&$filter=mobilephone eq '" + number + "' or telephone1 eq '" + number + "'or telephone2 eq '" + number + "'";
+	var querystringLead = "?$select=leadid,fullname&$filter=mobilephone eq '" + number + "' or telephone1 eq '" + number + "'or telephone2 eq '" + number + "'";
+	//var querystringContact = "?$select=contactid,fullname&$filter=mobilephone eq '" + ANI + "' or telephone1 eq '" + ANI + "'or telephone2 eq '" + ANI + "'";
+	// var querystringLead = "?$select=leadid,fullname&$filter=mobilephone eq '" + ANI + "' or telephone1 eq '" + ANI + "'or telephone2 eq '" + ANI + "'";
+	console.log('querystringContact',querystringContact);
+	console.log('querystringLead',querystringLead);
+	Xrm.WebApi.retrieveMultipleRecords("contact", querystringContact).then(
+                function success(result) {
+					 NumberOfContactRecords = result.entities.length;
+					 ContactData = result.entities;
+					 console.log("contact query :",result);
+					  if (NumberOfContactRecords == 0) {
+						  //No contact record found
+						  //Check for lead
+						  console.log("NumberOfContactRecords =0");
+						  Xrm.WebApi.retrieveMultipleRecords("lead", querystringLead).then(
+							function success(result) {
+								 NumberOfLeadRecords = result.entities.length;
+								  LeadData = result.entities;
+								  if (NumberOfLeadRecords == 0) {
+									 //No lead record found
+									 // Open new contact form with ani pre populated
+									  console.log('No Lead and contact Record Found');
+									  contactId='';
+									  leadId='';
+									var formParameters = {};
+										formParameters["telephone1"] = number;	
+											console.log("formParameters['telephone1']",formParameters["telephone1"]);
+									var entityFormOptions = {};										
+										entityFormOptions["entityName"] = "contact";
+										entityFormOptions["openInNewWindow"] = false;
+									
+									 Xrm.Navigation.openForm(entityFormOptions, formParameters).then(
+										function(success) {
+											console.log(success);
+										},
+										function(error) {
+											console.log(error);
+										});
+
+																					  
+								  }
+								  else if(NumberOfLeadRecords == 1){
+									  // One lead record found
+									  // pop lead record
+										console.log('single lead record found');
+										
+										leadId = result.entities[0].leadid;
+										console.log("lead id retrieveMultipleRecords block==>", leadId);
+									var entityFormOptions = {};	
+										entityFormOptions["entityName"] = "lead";
+										entityFormOptions["entityId"] = leadId;
+										entityFormOptions["openInNewWindow"] = false;
+										isContact=false;
+										 Xrm.Navigation.openForm(entityFormOptions).then(
+											function(success) {
+												console.log(success);
+											},
+											function(error) {
+												console.log(error);
+											});
+													  
+								  }else{
+									  //Multiple lead records found 
+									  //send data to nds
+									   console.error("LeadData",LeadData,"ContactData",ContactData);
+									   handleMultipleRecords(LeadData,ContactData,"MultipleRecordFound");
+								  }
+							},
+							function(error) {
+								console.log('screenpop error message==>', error);
+
+							}
+						);
+									  
+						  
+					  } else if(NumberOfContactRecords == 1){
+							console.log("NumberOfContactRecords",NumberOfContactRecords,ContactData);
+						  Xrm.WebApi.retrieveMultipleRecords("lead", querystringLead).then(
+							function success(result) {
+								 console.log("NumberOfContactRecords == 1 and lead result",result);
+								 NumberOfLeadRecords = result.entities.length;
+								  LeadData = result.entities;
+								  if (NumberOfLeadRecords == 0) {
+									 //No lead record found
+									 // Open matching contact 
+									 	
+										console.log('single contact record found and lead 0',result,ContactData);
+										
+										contactId = ContactData[0].contactid;
+										console.log("contact id retrieveMultipleRecords block==>", contactId);
+										isContact=true;
+										var entityFormOptions = {};	
+											entityFormOptions["entityName"] = "contact";
+											entityFormOptions["entityId"] = ContactId;
+											entityFormOptions["openInNewWindow"] = false;
+											
+										console.log('entityFormOptions',entityFormOptions);
+										 Xrm.Navigation.openForm(entityFormOptions).then(
+											function(success) {
+												console.log(success);
+											},
+											function(error) {
+												console.log(error);
+											});
+									 
+									  									  
+								  }
+								  else if(NumberOfLeadRecords == 1){
+									  // One lead record found
+									  //send contact and lead data to nds
+									    console.error("NumberOfLeadRecords == 1 and contact 1 and LeadData",LeadData,"ContactData",ContactData);
+									    handleMultipleRecords(LeadData,ContactData,"MultipleRecordFound");
+								  }else{
+									  //Multiple lead records found 
+									  //send contact and lead data to nds
+									    console.error("Multiple LeadData and contact 1",LeadData,"ContactData",ContactData);
+									    handleMultipleRecords(LeadData,ContactData,"MultipleRecordFound");
+								  }
+							},
+							function(error) {
+								console.log('error message==>', error);
+
+							}
+						);
+					  }else {
+						  //Multiple contact records found
+						  console.log("multiple contact found");
+						   Xrm.WebApi.retrieveMultipleRecords("lead", querystringLead).then(
+							function success(result) {
+								 console.log("multiple contact found and lead result",result);
+								 NumberOfLeadRecords = result.entities.length;
+								 LeadData = result.entities;
+								  if (NumberOfLeadRecords == 0) {
+									 //No lead record found
+									 //Send contact data to NDS
+									   console.log("multiple contact found and lead result ==0",LeadData,ContactData);
+									   handleMultipleRecords(LeadData,ContactData,"MultipleRecordFound");
+									  									  
+								  }
+								  else if(NumberOfLeadRecords == 1){
+									  // One lead record found
+									  //send contact and lead data to nds
+									  console.log("multiple contact found and lead result ==1",LeadData,ContactData);
+									   handleMultipleRecords(LeadData,ContactData,"MultipleRecordFound");
+								  }else{
+									  //Multiple lead records found 
+									  //send contact and lead data to nds
+									  console.log("multiple contact found and lead result ==multiple",LeadData,ContactData);
+									   handleMultipleRecords(LeadData,ContactData,"MultipleRecordFound");
+								  }
+							},
+							function(error) {
+								console.log('error message==>', error);
+
+							}
+						);
+					  }
+				},
+                function(error) {
+                    console.log('error message==>', error);
+
+                }
+            );
+}
+
+	function handleMultipleRecords(LeadData,ContactData,eventName){
+				console.log("in handleMultipleRecords");
+				
+				sendDataToNDS(LeadData,ContactData,eventName);
+	}
+	function sendDataToNDS(LeadData,ContactData,eventName){
+				var sendData=[];
+				if(LeadData!=null){
+					for(let i=0;i<LeadData.length;i++){
+						sendData.push({'id':LeadData[i].leadid,'fullname':LeadData[i].fullname,'type':'lead'});
+					}
+				}
+				if(ContactData!=null){
+					for(let i=0;i<ContactData.length;i++){
+						sendData.push({'id':ContactData[i].contactid,'fullname':ContactData[i].fullname,'type':'contact'});
+					}
+				}
+				console.log("in sendDataToNDS",LeadData,ContactData,eventName,sendData);		
+				  try {
+							var dataObj = new Object();
+							dataObj['LeadData'] = LeadData;
+							dataObj['ContactData'] = ContactData;							
+					  
+							var obj = new Object();
+							obj['eventName'] = eventName;
+							obj['data'] = sendData;
+							obj['eventType'] = "EXTERNAL_EVENT_TO_NDS";
+							console.log("in sendDataToNDS obj:",obj);
+							var win = document.getElementById("iagentFrame").contentWindow;
+							
+							win.postMessage(obj, '*');
+							console.log("After sending event to nds==>",eventName);
+						} catch (err) {
+							console.log("FinesseGadgetUtil Error Posting Message :",
+								err.message);
+						}
+			}			
+		
+		
+
+				function logCall(callTime,notes,wrapup) {
+				console.log("In logCall",notes,callTime,wrapup);
+					if(!wrapup){
+						wrapup="";
+					}
+					var dir=false;
+					if(outboundCall){
+						dir=true;
+					}
+					
+					console.log("phoneNumber for logging call===>", number);
+					var userID = Xrm.Utility.getGlobalContext().userSettings.userId;
+					console.log('userID==', userID);
+					var userIDreg = userID.replace(/[{}]/g, "");
+					console.log("userID after regex==>", userIDreg);
+					number=mapObj.get("ANI");
+					console.log("phone number is in logcall",number);
+					var user1;
+					var user2;
+			
+					var userData;
+					var data ;
+					console.log("contact Id is:",contactId);
+					 if(isContact && contactId ){
+						 if(dir){
+						 
+						user1="/systemusers(" + userIDreg + ")";
+						user2="/contacts(" + contactId + ")";
+						userData=[{
+									"partyid_systemuser@odata.bind":user1, // call started by a sustemuser
+									"participationtypemask": 1 // From
+								},
+								{
+									"partyid_contact@odata.bind": user2, // call to by a contact
+									"participationtypemask": 2 // To
+								}];	
+								
+						
+						
+						
+						
+						}
+						else{
+							user1="/contacts(" + contactId + ")";
+							user2="/systemusers(" + userIDreg + ")";
+							userData=[{
+									"partyid_contact@odata.bind":user1, // call started by a sustemuser
+									"participationtypemask": 1 // From
+								},
+								{
+									"partyid_systemuser@odata.bind": user2, // call to by a contact
+									"participationtypemask": 2 // To
+								}];	
+								
+							
+							
+						}
+					 
+					 data = {
+							"subject": "Phone Call at " + startCallTime,
+							"phonenumber": "" + number + "",
+							//notes from NAD + wrapup codes
+							"description": "Notes : "+notes+ "  WrapUpReason : "+wrapup +" callTime: " +callTime ,
+							"directioncode": dir, //Direction : 0-->False/Incomming, 1-->True/Outgoing
+							"regardingobjectid_contact@odata.bind": "/contacts(" + contactId + ")", //Regarding is a contact
+							"actualdurationminutes": "2",
+							"phonecall_activity_parties": userData
+						}
+		 
+		 } else if(!isContact &&leadId){
+					console.error("creating logs for lead");
+					console.error("lead id is",leadId);
+					 if(dir){
+						user1="/systemusers(" + userIDreg + ")";
+						user2="/contacts(" + leadId + ")";
+						userData=[{
+									"partyid_systemuser@odata.bind": user1 , // call started by a sustemuser
+									"participationtypemask": 1 // From
+								},
+								{
+									"partyid_lead@odata.bind": user2, // call to by a contact
+									"participationtypemask": 2 // To
+								}
+							];
+						}
+						else{
+							user1="/contacts(" + leadId + ")";
+							user2="/systemusers(" + userIDreg + ")";
+							userData=[{
+									"partyid_lead@odata.bind": user1 , // call started by a sustemuser
+									"participationtypemask": 1 // From
+								},
+								{
+									"partyid_systemuser@odata.bind": user2, // call to by a contact
+									"participationtypemask": 2 // To
+								}
+							];
+							
+						}
+					 
+					 
+					 data = {
+							"subject": "Phone Call at " + startCallTime,
+							"phonenumber": "" + number + "",
+							//notes from NAD + wrapup codes
+							"description": "Notes : "+notes+ "  WrapUpReason : "+wrapup+" callTime: " +callTime ,
+							"directioncode": dir, //Direction : 0-->False/Incomming, 1-->True/Outgoing
+							"regardingobjectid_lead@odata.bind": "/leads(" + leadId + ")", //Regarding is a contact
+							"actualdurationminutes": "2",
+							"phonecall_activity_parties": userData
+						}
+		 
+		 }else if((NumberOfLeadRecords==0 && NumberOfContactRecords==0) || clickToCallLogFlag==true){
+                                                          console.log("NumberOfLeadRecords==0 && NumberOfContactRecords==0");
+							 if (clickToCallLogFlag==true){
+								dir = true;
+							 }
+					var dto=2;
+					if(dir){
+						dto=1;
+					}
+					data = {
+								"subject": "Phone Call at " + startCallTime,
+								"phonenumber": "" + number + "",
+								//notes from NAD + wrapup codes
+								"description": "Notes : "+notes+ "  WrapUpReason : "+wrapup +" callTime: " +callTime,
+								"directioncode": dir, //Direction : 0-->False/Incomming, 1-->True/Outgoing
+								
+								"actualdurationminutes": "2",
+								"phonecall_activity_parties": [
+									{
+										"partyid_systemuser@odata.bind": "/systemusers(" + userIDreg + ")", // call to by a contact
+										"participationtypemask": dto // To
+									}
+								]
+							}
+							dir = false;
+			 }
+			 else{
+				 data = {
+								"subject": "Phone Call at " + startCallTime,
+								"phonenumber": "" + number + "",
+								//notes from NAD + wrapup codes
+								"description": "Notes : "+notes+ "  WrapUpReason : "+wrapup + " callTime:" +callTime,
+								"directioncode": dir, //Direction : 0-->False/Incomming, 1-->True/Outgoing
+								
+								"actualdurationminutes": "2",
+								"phonecall_activity_parties": [
+									{
+										"partyid_systemuser@odata.bind": "/systemusers(" + userIDreg + ")", // call to by a contact
+										"participationtypemask": 2 // To
+									}
+								]
+							}
+				 
+				 
+			 }
+	
+
+            // create account record
+            Xrm.WebApi.createRecord("phonecall", data).then(
+                function success(result) {
+                    console.log("phone call logged with ID: " + result.id);
+					updateLogId=result.id;
+					leadId='';
+					contactId='';
+                              //          ContactId='';
+				//	leadId='';
+				//	getWrapupReasons();
+                    // perform operations on record creation
+                },
+                function(error) {
+                    console.log(error.message);
+                    // handle error conditions
+                }
+            );
+
+        }
+		var updateCallLogs=function(notes,wrapup){
+			console.log("phoneNumber for logging call===>", ANI);
+					var userID = Xrm.Utility.getGlobalContext().userSettings.userId;
+					console.log('userID==', userID);
+					var userIDreg = userID.replace(/[{}]/g, "");
+					console.log("userID after regex==>", userIDreg);	
+					var data ;
+					 if(NumberOfContactRecords == 1 || isContact){
+					 
+					 data = {
+							"activityid":updateLogId,
+							//notes from NAD + wrapup codes
+							"description": "Notes : "+notes+ "  WrapUpReason :+"+wrapup ,
+							"directioncode": true, //Direction : 0-->False/Incomming, 1-->True/Outgoing
+							"regardingobjectid_contact@odata.bind": "/contacts(" + contactId + ")", //Regarding is a contact
+							
+							"phonecall_activity_parties": [{
+									"partyid_contact@odata.bind": "/contacts(" + ContactId + ")", // call started by a sustemuser
+									"participationtypemask": 1 // From
+								},
+								{
+									"partyid_systemuser@odata.bind": "/systemusers(" + userIDreg + ")", // call to by a contact
+									"participationtypemask": 2 // To
+								}
+							]
+						}
+		 
+		 } else if(NumberOfLeadRecords == 1 || !isContact){
+					console.error("creating logs for lead");
+					console.error("lead id is",leadId);
+					 
+					 data = {
+					        "activityid":updateLogId,
+							
+							//notes from NAD + wrapup codes
+							"description": "Notes : "+notes+ "  WrapUpReason :"+wrapup ,
+							"directioncode": true, //Direction : 0-->False/Incomming, 1-->True/Outgoing
+							"regardingobjectid_lead@odata.bind": "/leads(" + leadId + ")", //Regarding is a contact
+							
+							"phonecall_activity_parties": [{
+									"partyid_lead@odata.bind": "/contacts(" + leadId + ")", // call started by a sustemuser
+									"participationtypemask": 1 // From
+								},
+								{
+									"partyid_systemuser@odata.bind": "/systemusers(" + userIDreg + ")", // call to by a contact
+									"participationtypemask": 2 // To
+								}
+							]
+						}
+		 
+		 }else if(NumberOfRecords!=1 ||clickToCallLogFlag==true){
+							 if (clickToCallLogFlag==true){
+								directionCode = true;
+							 }
+			 
+					data = {
+								"activityid":updateLogId,
+								
+								//notes from NAD + wrapup codes
+								"description":  notes +" "+ wrapup,
+								"directioncode": directionCode, //Direction : 0-->False/Incomming, 1-->True/Outgoing
+								
+								
+								"phonecall_activity_parties": [
+									{
+										"partyid_systemuser@odata.bind": "/systemusers(" + userIDreg + ")", // call to by a contact
+										"participationtypemask": 2 // To
+									}
+								]
+							}
+							directionCode = false;
+			 }
+	
+
+            // create account record
+            Xrm.WebApi.updateRecord("phonecall", data).then(
+                function success(result) {
+                    console.log("phone call logged with ID: " + result.id);
+					
+					//getWrapupReasons();
+                    // perform operations on record creation
+                },
+                function(error) {
+                    console.log(error.message);
+                    // handle error conditions
+                }
+				
+				
+				
+            );
+		
+		}
+
+        var clickToDial = function(eventType, data, methodName) {
+            try {
+			 console.log("IN Click to dial");
+                var obj = new Object();
+                obj['eventName'] = eventType;
+                obj['value'] = data;
+                obj['data'] = data;
+		//obj['eventType'] = "EXTERNAL_EVENT_TO_NAD";
+		obj['eventType'] = "EXTERNAL_EVENT_TO_NDS";
+		if(isSimulatotor){
+			obj['methodName'] = methodName;  
+		}				//Uncomment in case for simulator 
+				
+	// alert(window.name);
+	    console.log("clickToDial",obj);
+                var win = document.getElementById("iagentFrame").contentWindow;;
+				win.postMessage(obj, '*');
+				console.log("after sending clickToDial",obj);
+            } catch (err) {
+                console.log("FinesseGadgetUtil Error Posting Message :",
+                    err.message);
+            }
+        };
+
+
+      
+	
+        function getCallTime(startCallTime, endCallTime) {
+            startCallTime = endCallTime - startCallTime;
+            var seconds = startCallTime / 1000;
+            var minutes = seconds / 60;
+            var seconds = seconds % 60;
+            var hours = minutes / 60;
+            var minutes = minutes % 60;
+            var data = Math.floor(hours) + ":" + Math.floor(minutes) + ":" + Math.floor(seconds);
+            return data;
+        }
+
+		
+		
+
+
+
+
+
+        function disableClickToCall() {
+            console.log("in disable Click To Call");
+        }
+
+        function enableClickToCall() {
+            console.log("in enable Click To Call");
+        }
+
+        function logout() {
+            console.log("in logout");
+        }		
+					
+		
+		
+    </script>
+    <meta>
+    <meta>
+<meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta><meta></head>
+
+<body style="overflow-wrap: break-word;" onfocusout="parent.setEmailRange();" dir="LTR" lang="en-US" data-gr-c-s-loaded="true" data-new-gr-c-s-loaded="14.1022.0">
+    <div id="mydiv" style="width:100%; height:100%">
+        <iframe src="" id="iagentFrame" frameborder="0" width="100%" height="100%"> </iframe>
+    </div>
+
+
+
+
+
+
+
+
+
+<grammarly-desktop-integration data-grammarly-shadow-root="true"></grammarly-desktop-integration></body></html>

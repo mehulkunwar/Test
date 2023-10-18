@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Webpack Output</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+  </head>
+  <body>
+    <script>
+      var qs;
+      // qs = "?serverDetails=eyAidXNlUHJveHkiOnRydWUsCiAgImRlZmF1bHRQcmltYXJ5QWxpYXMiOiAiZjEiLAogICJkZWZhdWx0U2Vjb25kYXJ5QWxpYXMiOiAiZjIiLAogICJzZXJ2ZXJMaXN0IjogWwogICAgewogICAgICAiZmluZXNzZVZlcnNpb24iOiAiMTEiLAogICAgICAiZmluZXNzZVNlcnZlcklQIjogImZpbmVzc2UwMy0xMTUubGFiLm5vdmVsdm94LmNvbSIsCiAgICAgICJmaW5lc3NlU2VydmVyUG9ydCI6ICI4NDQ1IiwKICAgICAgInByb3RvY29sIjogImh0dHBzIiwKICAgICAgImJvc2hQb3J0IjogIjc0NDMiLAogICAgICAiZmluZXNzZVNlcnZlckFsaWFzIjogImYxIiwKICAgICAgImluc3RhbGxhdGlvblR5cGUiOiAiVUNDWCIsCgkgICJhc3NvY2lhdGVDYWxsIiA6IGZhbHNlLAoJICAic2NyZWVuVHJhbnNmZXIiIDogZmFsc2UsCgkgICJuYWRUYWIiIDogZmFsc2UsCgkgICJjeGlUYWIiIDogZmFsc2UsCiAgICAgICAgICAiY3VzdG9tZXJJZCI6ICJ2b2x2byIKICAgIH0sCiAgICB7CiAgICAgImZpbmVzc2VWZXJzaW9uIjogIjExIiwKICAgICAgImZpbmVzc2VTZXJ2ZXJJUCI6ICJmaW5lc3NlMDMtMTE1LmxhYi5ub3ZlbHZveC5jb20iLAogICAgICAiZmluZXNzZVNlcnZlclBvcnQiOiAiODQ0NSIsCiAgICAgICJwcm90b2NvbCI6ICJodHRwcyIsCiAgICAgICJib3NoUG9ydCI6ICI3NDQzIiwKICAgICAgImZpbmVzc2VTZXJ2ZXJBbGlhcyI6ICJmMiIsCiAgICAgICJpbnN0YWxsYXRpb25UeXBlIjogIlVDQ1giLAoJICAiaW5zdGFsbGF0aW9uVHlwZSI6ICJVQ0NYIiwKCSAgImFzc29jaWF0ZUNhbGwiIDogZmFsc2UsCgkgICJzY3JlZW5UcmFuc2ZlciIgOiBmYWxzZSwKCSAgIm5hZFRhYiIgOiBmYWxzZSwKCSAgImN4aVRhYiIgOiBmYWxzZSwKICAgICAgICAgICJjdXN0b21lcklkIjogInZvbHZvIgogICAgfQogIF0KfQ"
+      // qs = "?serverDetails=eyAidXNlUHJveHkiOnRydWUsCiAgImRlZmF1bHRQcmltYXJ5QWxpYXMiOiAiZjEiLAogICJkZWZhdWx0U2Vjb25kYXJ5QWxpYXMiOiAiZjIiLAogICJzZXJ2ZXJMaXN0IjogWwogICAgewogICAgICAiZmluZXNzZVZlcnNpb24iOiAiMTEiLAogICAgICAiZmluZXNzZVNlcnZlcklQIjogImZpbmVzc2UwMy0xMTUubGFiLm5vdmVsdm94LmNvbSIsCiAgICAgICJmaW5lc3NlU2VydmVyUG9ydCI6ICI4NDQ1IiwKICAgICAgInByb3RvY29sIjogImh0dHBzIiwKICAgICAgImJvc2hQb3J0IjogIjc0NDMiLAogICAgICAiZmluZXNzZVNlcnZlckFsaWFzIjogImYxIiwKICAgICAgImluc3RhbGxhdGlvblR5cGUiOiAiVUNDWCIsCgkgICJhc3NvY2lhdGVDYWxsIiA6IGZhbHNlLAoJICAic2NyZWVuVHJhbnNmZXIiIDogZmFsc2UsCgkgICJuYWRUYWIiIDogZmFsc2UsCgkgICJjeGlUYWIiIDogZmFsc2UsCiAgICAgICAgICAiY3VzdG9tZXJJZCI6ICJzYWFiIgogICAgfSwKICAgIHsKICAgICAiZmluZXNzZVZlcnNpb24iOiAiMTEiLAogICAgICAiZmluZXNzZVNlcnZlcklQIjogImZpbmVzc2UwMy0xMTUubGFiLm5vdmVsdm94LmNvbSIsCiAgICAgICJmaW5lc3NlU2VydmVyUG9ydCI6ICI4NDQ1IiwKICAgICAgInByb3RvY29sIjogImh0dHBzIiwKICAgICAgImJvc2hQb3J0IjogIjc0NDMiLAogICAgICAiZmluZXNzZVNlcnZlckFsaWFzIjogImYyIiwKICAgICAgImluc3RhbGxhdGlvblR5cGUiOiAiVUNDWCIsCgkgICJhc3NvY2lhdGVDYWxsIiA6IGZhbHNlLAoJICAic2NyZWVuVHJhbnNmZXIiIDogZmFsc2UsCgkgICJuYWRUYWIiIDogZmFsc2UsCgkgICJjeGlUYWIiIDogZmFsc2UsCiAgICAgICAgICAiY3VzdG9tZXJJZCI6ICJzYWFiIgogICAgfQogIF0KfQ"
+      //NAD_AIC.connect();
+
+      function sendEvent() {
+        try {
+          var obj = new Object();
+          obj["eventName"] = "ServerConfig";
+          obj["value"] = qs;
+          var win = document.getElementById("Frame").contentWindow;
+          win.postMessage(obj, "*");
+        } catch (err) {
+          console.log(
+            "agentStateChangeNotification Error Posting Message :" + err.message
+          );
+        }
+      }
+      function sendCallUpdateEvent() {
+        try {
+          var obj = new Object();
+          obj["eventName"] = "RECORD_VARIABLE_UPDATE";
+          obj["value"] = qs;
+          var win = document.getElementById("Frame").contentWindow;
+          win.postMessage(obj, "*");
+        } catch (err) {
+          console.log(
+            "agentStateChangeNotification Error Posting Message :" + err.message
+          );
+        }
+      }
+
+      var receiveCTIMessage = function (event) {
+        try {
+          handleCTIMessages(event);
+        } catch (err) {
+          console.error("receiveMessage", err.message);
+        }
+      };
+      var addCTIEvent = window.attachEvent || window.addEventListener;
+      var event = window.attachEvent ? "onmessage" : "message";
+
+      addCTIEvent(event, receiveCTIMessage);
+
+      function handleCTIMessages(event) {
+        console.log(
+          "Event received for CallEvents CRM " + JSON.stringify(event.data)
+        );
+        if (event.data.eventName == "APPLICATION_INITIALIZED") {
+          sendEvent();
+        }
+        //MK
+        else if (event.data.eventName == "CallStartNotification") {
+          try {
+            console.error(
+              "Patient Number",
+              event.data.value.callVariables[10].value
+            );
+            
+            //Event Name: datashop-contact-center-calling-widget:onPatientNumberClick
+            //Event Data: patient number
+            //Definition: on getting this event inside the widget, initiate an outbound call
+          } catch (e) {
+            console.error(e);
+          }
+        } else if (event.data.eventName == "CallEndNotification") {
+        }
+
+        //MK
+        else {
+          try {
+            var win = document.getElementById("Frame").contentWindow;
+            win.postMessage(event.data, "*");
+          } catch (err) {
+            console.log(
+              "agentStateChangeNotification Error Posting Message :" +
+                err.message
+            );
+          }
+        }
+      }
+    </script>
+  </body>
+  <!-- <button onClick="sendEvent()">sendFinesseConfig</button> -->
+  <!-- <button onClick="sendCallUpdateEvent()">Transfer Screen</button> -->
+  <div id="mydiv" class="iframeContainerStyle">
+    <!--iframe src="https://slcti.novelvox.net/cisco/fin/index.html" id="Frame" frameBorder="0" width="340px" height="550px"></iframe-->
+    <iframe
+      src="https://nds.novelvox.net/runner?module=CTI_Connector_Demo&cti=msdsim"
+      id="Frame"
+      frameborder="0"
+      width="340px"
+      height="550px"
+    ></iframe>
+  </div>
+</html>
